@@ -1,0 +1,43 @@
+generation:
+  n_samples: 200
+  n_batches: 10
+  n_points: 200
+  point_dim: 2
+  n_seeds: 8
+
+  obs_type: p
+  min_n_obs: 2
+  max_n_obs: 5
+
+  min_size_obs: 5
+  max_size_obs: 15
+  obs_margin: 3
+  verts_min: 4
+  verts_max: 10
+  min_angle: 20
+  attempts_per_obs: 10
+
+  x_max: 100
+  y_max: 100
+
+  safety_margin_reduction: 0.5
+  influence_radius: 4
+  init_smoothing_iters: 3
+  avg_smoothing_window: 3
+
+  smoothing_c: 0.2
+  repulsion_c: 2.0
+  relaxation_iters: 10
+
+sff:
+  trial_lim: 20
+  max_rad: 4
+  min_rad: 0
+  tree_dist: 5
+  grid_res: 6
+
+paths:
+  default_pt: generated
+  dset_fn: data.pt
+  extra_fn: extra.pt
+  meta_fn: meta.yaml
