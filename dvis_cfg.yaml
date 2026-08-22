@@ -1,5 +1,0 @@
-paths:
-  default_pt: generated
-  dset_fn: data.pt
-  extra_fn: extra.pt
-  meta_fn: meta.yaml

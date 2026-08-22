@@ -32,6 +32,8 @@ def gen_pt_radius(
 
     return (x, y), radius
 
+def get_pt_pt_dist(p1, p2):
+    return ((p1[0] - p2[0]) ** 2 + (p1[1] - p2[1]) ** 2) ** 0.5
 
 def get_pt_seg_dist(
     p: tuple[float, float],

@@ -1,6 +1,7 @@
 import utils as ut
 import shapely as sp
 import numpy as np
+from itertools import product
 from shapely.ops import nearest_points, unary_union
 
 
@@ -93,28 +94,29 @@ def remove_duplicate_points(path: list) -> list:
             points.add(point)
     
     return cleaned_path
-    
-def get_paths(id_paths: list, point_paths: dict) -> list:
-    """Creates actual point paths from path segments created by SFF marked with IDs based on 'abstract' ID paths
-    created for some start and goal"""
 
+def get_paths(id_paths, point_paths):
     paths = []
 
     for id_path in id_paths:
-        path = []
+        options = []
 
         for i in range(len(id_path) - 1):
-            if id_path[i] < id_path[i+1]:
-                id = (id_path[i], id_path[i+1])
-                path_seg = point_paths[id]
-            else:
-                id = (id_path[i+1], id_path[i])
-                path_seg = list(reversed(point_paths[id]))
-            
-            path.extend(path_seg)
-        
-        path = remove_duplicate_points(path)
-        paths.append(path)
+            tree_a, tree_b = id_path[i], id_path[i + 1]
+            reverse = tree_a > tree_b
+            key = (tree_b, tree_a) if reverse else (tree_a, tree_b)
+            segs = point_paths[key]
+
+            if reverse:
+                segs = [list(reversed(seg)) for seg in segs]
+
+            options.append(segs)
+
+        for choice in product(*options):
+            path = []
+            for seg in choice:
+                path.extend(seg)
+            paths.append(remove_duplicate_points(path))
 
     return paths
 
@@ -168,10 +170,12 @@ def obstacle_intersection_repair(path: list, obstacles: list[sp.Geometry], safet
         
     return fixed_path
 
-def moving_avg_path_smoothing(path: list, window_size: int) -> list:
+def moving_avg_path_smoothing(path: list, obstacles: list, margin: int, window_size: int) -> list:
     """Smoothes path by assigning the average of the nearby 'window_size' points (on each side) to
     each point"""
 
+    obs_buffers = [obs.buffer(margin, join_style=3) for obs in obstacles]
+    obs_union = unary_union(obs_buffers)
     left_pad = [path[0]] * window_size
     right_pad = [path[-1]] * window_size
     path_padded = left_pad + path + right_pad
@@ -185,6 +189,12 @@ def moving_avg_path_smoothing(path: list, window_size: int) -> list:
         
         x_avg = sum(x_vals) / total_win_len
         y_avg = sum(y_vals) / total_win_len
+
+        point = sp.Point(x_avg, y_avg)
+        
+        if ut.geo_in_obst(point, obs_buffers):
+            safe_p, _ = nearest_points(obs_union, point)
+            x_avg, y_avg = safe_p.x, safe_p.y
         
         smoothed.append((x_avg, y_avg))
         
@@ -192,53 +202,6 @@ def moving_avg_path_smoothing(path: list, window_size: int) -> list:
     smoothed[-1] = path[-1]
     
     return smoothed
-
-def physical_path_smoothing(path: list, obstacles: list[sp.Geometry], safety_margin: float, influence_radius: float,
-                            iterations: int, alpha: float, beta: float) -> list:
-    """Smoothes path using physical based 'spring' like relaxation alongside force-field based obstacle avoidance"""
-
-    obs_union = unary_union(obstacles)
-    
-    for _ in range(iterations):
-        new_path = list(path)
-        
-        for i in range(1, len(path) - 1):
-            p = path[i]
-            p_point = sp.Point(p)
-            dist = float(sp.distance(p_point, obs_union))
-            
-            repulsion_x = 0
-            repulsion_y = 0
-
-            if dist < 0.001:
-                pass # get normal vector of nearest obstacle edge
-            elif dist < influence_radius:
-                nearest_geom, _ = nearest_points(obs_union, p_point)
-                vec_x = p[0] - nearest_geom.x
-                vec_y = p[1] - nearest_geom.y
-
-                normed_x  = vec_x / dist
-                normed_y  = vec_y / dist
-                
-                if dist <= safety_margin:
-                    repulsion_x = normed_x * (safety_margin - dist + 1) * 2
-                    repulsion_y = normed_y * (safety_margin - dist + 1) * 2
-                else:
-                    ratio = (influence_radius - dist) / (influence_radius - safety_margin)
-                    repulsion_x = normed_x * beta * (ratio ** 2)
-                    repulsion_y = normed_y * beta * (ratio ** 2)
-                    
-            spring_x = alpha * (path[i-1][0] + path[i+1][0] - 2 * p[0])
-            spring_y = alpha * (path[i-1][1] + path[i+1][1] - 2 * p[1])
-
-            new_x = p[0] + repulsion_x + spring_x
-            new_y = p[1] + repulsion_y + spring_y
-
-            new_path[i] = (new_x, new_y)
-            
-        path = new_path
-        
-    return path
 
 def redistribute_points(path: list, n_points: int) -> np.ndarray:
     """Evenly redistributes fixed amount of paths along the path using linear interpolation"""
@@ -262,17 +225,9 @@ def resample_paths(paths: list[list], obstacles: list[sp.Geometry], gen_c: dict)
     resampled_paths = []
     n_points = gen_c["n_points"]
     safety_margin = (gen_c["obs_margin"] / 2) - gen_c["safety_margin_reduction"]
-    influence_radius = gen_c["influence_radius"]
 
     for path in paths:
-        for _ in range(gen_c["init_smoothing_iters"]):
-            path = moving_avg_path_smoothing(path, gen_c["avg_smoothing_window"])
-            path = obstacle_intersection_repair(path, obstacles, safety_margin)
-    
-        path = physical_path_smoothing(
-            path, obstacles, safety_margin, influence_radius, iterations=gen_c["relaxation_iters"],
-            alpha=gen_c["smoothing_c"], beta=gen_c["repulsion_c"])
-        
+        path = moving_avg_path_smoothing(path, obstacles, safety_margin, gen_c["avg_smoothing_window"])
         path = obstacle_intersection_repair(path, obstacles, safety_margin)
         path = redistribute_points(path, n_points)
 

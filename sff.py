@@ -169,6 +169,11 @@ class SFFsolver():
         self.trees = {i:{seeds[i]:seeds[i]} for i in range(len(seeds))} # tree_id:{child:parent}
         frontier = [(seeds[i], i) for i in range(len(seeds))] # (point, tree_id)
         paths = {} # (tree1, tree2):path
+        bridge_points = {}
+
+        for i in range(len(seeds)):
+            for j in range(0, i):
+                bridge_points[(j, i)] = set()
         
         self.edges = {i:{seeds[i]:sp.LineString((seeds[i], seeds[i]))} for i in range(len(seeds))}
         self.grid = Grid(sff_c["grid_res"], gen_c["x_max"], gen_c["y_max"]) # coord:[(point, tree_id)]
@@ -200,7 +205,7 @@ class SFFsolver():
                         nearest_dist >= new_point_dist and
                         not ut.geo_inter_obst(new_edge, self.obs) and
                         not self.check_intersect(new_point, point, new_edge, tree_id)
-                    ): # tree ingrowth and obstacles check MIND THE EQUAL SIGN
+                    ): # tree ingrowth and obstacles check
                         tree[new_point] = point
                         frontier.append((new_point, tree_id))
                         self.grid.add_to_grid(new_point, tree_id)
@@ -208,24 +213,37 @@ class SFFsolver():
                         success = True
                         break
                 else:
-                    path_id = (nearest_tree_id, tree_id) if nearest_tree_id < tree_id else (tree_id, nearest_tree_id)
+                    reverse = nearest_tree_id < tree_id
+                    path_id = (nearest_tree_id, tree_id) if reverse else (tree_id, nearest_tree_id)
                     connect_line = sp.LineString((nearest_point, point))
 
-                    if path_id in paths:
+                    if ut.geo_inter_obst(connect_line, self.obs) or point in bridge_points[path_id] or nearest_point in bridge_points[path_id]:
                         continue
-                    elif ut.geo_inter_obst(connect_line, self.obs):
+
+                    min_dist = max(gen_c["x_max"], gen_c["y_max"])
+
+                    for br_point in bridge_points[path_id]:
+                        dist1 = ut.get_pt_pt_dist(br_point, point)
+                        dist2 = ut.get_pt_pt_dist(br_point, nearest_point)
+                        dist = min(dist1, dist2)
+
+                        if dist < min_dist:
+                            min_dist = dist
+
+                    if min_dist < sff_c["bridge_thresh"] and bridge_points[path_id]:
                         continue
-                    else:
-                        reverse = nearest_tree_id < tree_id
-                        paths[path_id] = self.construct_path(
-                            point,
-                            nearest_point,
-                            self.trees[tree_id],
-                            self.trees[nearest_tree_id],
-                            reverse
-                        )       
                     
+                    bridge_points[path_id].add(point)
+                    bridge_points[path_id].add(nearest_point)
+                    path = self.construct_path(point, nearest_point, self.trees[tree_id],
+                                               self.trees[nearest_tree_id], reverse)
+
+                    if path_id not in paths:
+                        paths[path_id] = [path]
+                    else:
+                        paths[path_id].append(path)
+
             if not success:
                 frontier.pop(rnd_id)
-            
+
         return paths, self.trees
