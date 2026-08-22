@@ -4,7 +4,7 @@ env:
 
 path:
   n_points: 200
-  safety_margin: 2
+  safety_margin: 0.2
   avg_smoothing_window: 7
 
 sff:

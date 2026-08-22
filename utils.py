@@ -3,11 +3,11 @@ import numpy as np
 import random as rnd
 import yaml
 import shapely as sp
+import copy
 from itertools import product
 from shapely.ops import nearest_points, unary_union
 
 from typing import Any
-from shapely import Geometry
 from pathlib import Path
 
 
@@ -64,7 +64,7 @@ def get_pt_seg_dist(p: tuple[float, float], a: tuple[float, float], b: tuple[flo
     return math.sqrt((dx * dx) + (dy * dy)), t
 
 
-def geo_in_obst(geometry: Geometry, obstacles: list[Geometry]) -> bool:
+def geo_in_obst(geometry: sp.Geometry, obstacles: list[sp.Geometry]) -> bool:
     """Check whether a geometry object is inside the given set of obstacles."""
     for obs in obstacles:
         if obs.contains(geometry):
@@ -73,7 +73,7 @@ def geo_in_obst(geometry: Geometry, obstacles: list[Geometry]) -> bool:
     return False
 
 
-def geo_inter_obst(geometry: Geometry, obstacles: list[Geometry]) -> bool:
+def geo_inter_obst(geometry: sp.Geometry, obstacles: list[sp.Geometry]) -> bool:
     """Check whether a geometry object is intersecting the given set of obstacles."""
     for obs in obstacles:
         if obs.intersects(geometry):
@@ -92,7 +92,7 @@ def gen_pt_space(x_min: float, y_min: float, x_max: float, y_max: float) -> tupl
 
 def gen_pt_free_space(x_min: float, y_min: float, x_max: float, y_max: float,
                       obstacles: list[sp.Geometry]) -> tuple[float, float]:
-    """Generate a point in a rectangular space given by the limits that isnt inside an obstacle"""
+    """Generate a point in a rectangular space given by the limits that isnt inside an obstacle, assumes that enough free space exists (otherwise can create an infinite loop)"""
 
     contains = True
     point = None
@@ -113,14 +113,14 @@ def graph_from_paths(paths: dict) -> dict:
     for p1, p2 in paths:
 
         if p1 in graph:
-            graph[p1].append(p2)
+            graph[p1].add(p2)
         else:
-            graph[p1] = [p2]
+            graph[p1] = {p2}
         
         if p2 in graph:
-            graph[p2].append(p1)
+            graph[p2].add(p1)
         else:
-            graph[p2] = [p1]
+            graph[p2] = {p1}
 
     return graph
 
@@ -178,10 +178,12 @@ def get_paths(id_paths: list, point_segments: list) -> list:
             tree_a, tree_b = id_path[i], id_path[i + 1]
             reverse = tree_a > tree_b
             key = (tree_b, tree_a) if reverse else (tree_a, tree_b)
-            segs = point_segments[key]
+            raw_segs = point_segments[key]
 
             if reverse:
-                segs = [list(reversed(seg)) for seg in segs]
+                segs = [list(reversed(copy.deepcopy(seg))) for seg in raw_segs]
+            else:
+                segs = copy.deepcopy(raw_segs)
 
             options.append(segs)
 
@@ -221,7 +223,7 @@ def repair_segment(p_start: tuple[float, float], p_end: tuple[float, float], obs
 def obstacle_intersection_repair(path: list, obstacles: list[sp.Geometry], safety_margin: float) -> list:
     """Pushes all points away from obstacles and subvidivides segments if they
     are intersecting obstacles"""
-    obs_buffers = [obs.buffer(safety_margin - 0.1, join_style=3) for obs in obstacles]
+    obs_buffers = [obs.buffer(safety_margin * 0.01, join_style=3) for obs in obstacles]
     obstacle_zone = unary_union(obs_buffers)
     
     push_buffers = [obs.buffer(safety_margin, join_style=3) for obs in obstacles]

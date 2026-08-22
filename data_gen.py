@@ -17,7 +17,7 @@ end = (x_max, y_max)
 obs = [sp.Point(3, 6).buffer(1), sp.Point(6, 3).buffer(1)] # can be a list of any shapely geometry
 
 s_time = time.time()
-n_paths = 1000000
+n_paths = 10000
 generated = 0
 solver = sff.SFFsolver(obs, config)
 
