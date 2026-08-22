@@ -1,6 +1,7 @@
 A simple working example is in data_gen.py
 
 Config params:
+
 Env:
 - x_max, y_max: self explanatory, min is always assumed to be (0, 0)
 
