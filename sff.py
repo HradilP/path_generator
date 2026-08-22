@@ -51,14 +51,27 @@ class Grid():
         return points
 
 
-
 class SFFsolver():
     """Space Filling Forest solver class for running SFF in a 2D space with obstacles"""
 
-    def __init__(self, seeds: list, obstacles: list, config: dict) -> None:
-        self.seeds = seeds
+    def __init__(self, obstacles: list, config: dict) -> None:
         self.obs = obstacles
         self.config = config
+        self.seeds = []
+
+    def gen_seeds(self, start: tuple[float, float], end: tuple[float, float]):
+        """Generates seeds for running SFF in a 2D space, returns the indexes of the passed start point and end point"""
+
+        seeds = [start] # id 0
+
+        for _ in range (self.config["sff"]["n_seeds"]):
+            seed = ut.gen_pt_free_space(0, 0, self.config["env"]["x_max"], self.config["env"]["y_max"], self.obs)
+            seeds.append(seed)
+
+        seeds.append(end) # id max index
+        self.seeds = seeds
+
+        return 0, self.config["sff"]["n_seeds"] + 1
 
     def get_dist_in_tree(self, curr_tree_id: int, point: tuple[float, float]) -> float:
         """Get the distance of a point to the nearest point belonging to the given tree"""
@@ -159,11 +172,12 @@ class SFFsolver():
         
         return False    
 
-    def sff(self) -> tuple:
+    def sff(self) -> list:
         """Run the actual SFF algorithm"""
 
         seeds = self.seeds
-        gen_c = self.config["generation"]
+        x_max = self.config["env"]["x_max"]
+        y_max = self.config["env"]["y_max"]
         sff_c = self.config["sff"]
 
         self.trees = {i:{seeds[i]:seeds[i]} for i in range(len(seeds))} # tree_id:{child:parent}
@@ -176,7 +190,7 @@ class SFFsolver():
                 bridge_points[(j, i)] = set()
         
         self.edges = {i:{seeds[i]:sp.LineString((seeds[i], seeds[i]))} for i in range(len(seeds))}
-        self.grid = Grid(sff_c["grid_res"], gen_c["x_max"], gen_c["y_max"]) # coord:[(point, tree_id)]
+        self.grid = Grid(sff_c["grid_res"], x_max, y_max) # coord:[(point, tree_id)]
         self.grid.add_seeds(seeds)
 
         while frontier:
@@ -193,7 +207,7 @@ class SFFsolver():
                 new_point, new_point_dist = ut.gen_pt_radius(point[0], point[1], sff_c["max_rad"])
                 new_edge = sp.LineString((new_point, point))
 
-                if new_point[0] > gen_c["x_max"] or new_point[0] < 0 or new_point[1] > gen_c["y_max"] or new_point[1] < 0:
+                if new_point[0] > x_max or new_point[0] < 0 or new_point[1] > y_max or new_point[1] < 0:
                     trial -= 1 # point out of bounds doesnt count as an unsuccessfull trial
                     continue
 
@@ -220,7 +234,7 @@ class SFFsolver():
                     if ut.geo_inter_obst(connect_line, self.obs) or point in bridge_points[path_id] or nearest_point in bridge_points[path_id]:
                         continue
 
-                    min_dist = max(gen_c["x_max"], gen_c["y_max"])
+                    min_dist = max(x_max, y_max)
 
                     for br_point in bridge_points[path_id]:
                         dist1 = ut.get_pt_pt_dist(br_point, point)
@@ -246,4 +260,4 @@ class SFFsolver():
             if not success:
                 frontier.pop(rnd_id)
 
-        return paths, self.trees
+        return paths

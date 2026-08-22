@@ -1,27 +1,44 @@
 import utils as ut
-import dgen_utils as dut
 import sff
 
-def main():
-    config = ut.load_yaml("dgen_cfg.yaml")
-    gen_c = config["generation"]
+import shapely as sp
+import time
+import datetime
 
-    start = (0, 0)
-    x_max = gen_c["x_max"]
-    y_max = gen_c["y_max"]
-    end = (x_max, y_max)
+# basic working example
+config = ut.load_yaml("dgen_cfg.yaml")
 
-    obs = [] # shapely geometry list
+x_max = config["env"]["x_max"]
+y_max = config["env"]["y_max"]
 
-    # seeds, start_id, end_id = dut.gen_seeds(start, end, obs, gen_c)
-    solver = sff.SFFsolver(obs, config)
+start = (0, 0)
+end = (x_max, y_max)
+
+obs = [sp.Point(3, 6).buffer(1), sp.Point(6, 3).buffer(1)] # can be a list of any shapely geometry
+
+s_time = time.time()
+n_paths = 1000000
+generated = 0
+solver = sff.SFFsolver(obs, config)
+
+while generated < n_paths:
+    start_id, end_id = solver.gen_seeds(start, end)
+
+    print("Running solver")
     point_paths = solver.sff()
 
-    id_graph = dut.graph_from_paths(point_paths)
-    id_paths = dut.all_paths_DFS(id_graph, start_id, end_id)
+    print("Creating graph")
+    id_graph = ut.graph_from_paths(point_paths)
+    print("Getting ID paths")
+    id_paths = ut.all_paths_DFS(id_graph, start_id, end_id)
+    print("Getting actual paths")
+    paths = ut.get_paths(id_paths, point_paths)
+    print(f"New paths: {len(paths)}")
+    
+    print("Resampling\n")
+    resampled_paths = ut.resample_paths(paths, obs, config, smooth=False)
+    generated += len(resampled_paths)
 
-    if id_paths == []:
-        return
-
-    paths = dut.get_paths(id_paths, point_paths)
-    resampled_paths = dut.resample_paths(paths, obs, gen_c)
+taken = time.time() - s_time
+print(f"Paths generated: {generated}")
+print(f"Time taken: {datetime.timedelta(seconds=taken)}")

@@ -1,17 +1,17 @@
 env:
-  x_max: 100
-  y_max: 100
+  x_max: 10
+  y_max: 10
 
 path:
   n_points: 200
-  safety_margin_reduction: 0.5
+  safety_margin: 2
   avg_smoothing_window: 7
 
 sff:
   n_seeds: 8
   trial_lim: 20
-  max_rad: 4
+  max_rad: 0.4
   min_rad: 0
-  tree_dist: 5
-  grid_res: 6
-  bridge_thresh: 9
+  tree_dist: 0.5
+  grid_res: 0.6
+  bridge_thresh: 0.9
