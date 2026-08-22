@@ -36,7 +36,7 @@ while generated < n_paths:
     print(f"New paths: {len(paths)}")
     
     print("Resampling\n")
-    resampled_paths = ut.resample_paths(paths, obs, config, smooth=False)
+    resampled_paths = ut.resample_paths(paths, obs, config, smooth=False) # smooth=True for reasonably nice curves, slows the process a lot
     generated += len(resampled_paths)
 
 taken = time.time() - s_time
