@@ -4,7 +4,7 @@ Config params:
 Env:
 - x_max, y_max: self explanatory, min is always assumed to be (0, 0)
 
-Path
+Path:
 - n_points: the number of points for final resampling
 - safety margin: how far points will be pushed away from an obstacle during smoothing
 - avg_smoothing_window: how many points on each side are used for moving avg
